@@ -212,6 +212,12 @@ PS> uv run python engcrawl combine my_project docs --cleanup
 
 ## VS Code Integration
 
+### **Quick Setup** (Recommended)
+```powershell
+PS> .\setup_vscode.bat
+```
+
+### **Manual Setup**
 Add to `.vscode/tasks.json`:
 ```json
 {
@@ -227,13 +233,17 @@ Add to `.vscode/tasks.json`:
                 "reveal": "always",
                 "focus": true,
                 "panel": "new"
-            }
+            },
+            "problemMatcher": []
         }
     ]
 }
 ```
 
+### **How to Use**
 Run with: `Ctrl+Shift+P` → "Tasks: Run Task" → "Run Engineering Crawler"
+
+**Note:** VS Code settings sync doesn't transfer `.vscode/tasks.json` files. Run `setup_vscode.bat` on each new computer where you want this integration.
 
 ## Best Practices
 
@@ -281,10 +291,11 @@ Run with: `Ctrl+Shift+P` → "Tasks: Run Task" → "Run Engineering Crawler"
 - `engcrawl` - Main Python script (the crawler wrapper)
 - `run_engcrawl.bat` - Windows batch file for easy execution
 - `setup_engcrawl.bat` - One-time setup script
+- `setup_vscode.bat` - VS Code integration setup
 - `requirements.txt` - Python dependencies
 - `pyproject.toml` - UV project configuration
 - `engineering_projects/` - Your crawled content goes here
-- `.vscode/tasks.json` - VS Code integration
+- `.vscode/tasks.json` - VS Code integration (created by setup_vscode.bat)
 
 ## Dependencies
 
