@@ -1,6 +1,14 @@
 # Engineering Crawler
 
-A simple, interactive project management wrapper for crawl4ai that organizes web crawling into hierarchical engineering projects.
+[![Built on crawl4ai](https://img.shields.io/badge/Built%20on-crawl4ai-blue)](https://github.com/unclecode/crawl4ai)
+[![For Engineers](https://img.shields.io/badge/For-Engineers-green)]()
+[![Python](https://img.shields.io/badge/Python-3.11+-blue)]()
+[![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)]()
+[![AI](https://img.shields.io/badge/AI-Gemini%202.5-orange)]()
+
+> **🔧 Specialized Fork**: This is a purpose-built project management tool for engineering documentation workflows, built on top of [crawl4ai](https://github.com/unclecode/crawl4ai). It transforms general web crawling into systematic documentation workflows for technical professionals.
+
+**What makes this different:** While crawl4ai is an excellent general-purpose web crawling library, Engineering Crawler adds project management, hierarchical organization, interactive workflows, and AI-enhanced document processing specifically for engineering documentation needs.
 
 ## Features
 
@@ -277,5 +285,13 @@ Run with: `Ctrl+Shift+P` → "Tasks: Run Task" → "Run Engineering Crawler"
 - **google-generativeai** - Optional, for AI cleanup features
 
 ---
+
+## Attribution & License
+
+This project is a specialized fork of [crawl4ai](https://github.com/unclecode/crawl4ai) by [unclecode](https://github.com/unclecode). Engineering Crawler adds project management, interactive workflows, and engineering-specific optimizations while leveraging crawl4ai's excellent web crawling engine.
+
+**Original Project:** https://github.com/unclecode/crawl4ai  
+**License:** Same as original crawl4ai project  
+**Engineering Enhancements:** Project organization, interactive CLI, AI cleanup, Windows optimization
 
 **Created for engineering documentation and knowledge management workflows.**
