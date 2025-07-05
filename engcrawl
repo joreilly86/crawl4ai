@@ -1,0 +1,760 @@
+#!/usr/bin/env python3
+"""
+Engineering Crawler - Project Management Wrapper for crawl4ai
+A simple CLI tool for organizing web crawling projects hierarchically.
+"""
+
+import os
+import sys
+import yaml
+import argparse
+import subprocess
+from pathlib import Path
+from datetime import datetime
+from typing import Dict, List, Optional
+import json
+
+# Load .env file if it exists
+def load_env_file():
+    """Load environment variables from .env file if it exists."""
+    env_file = Path('.env')
+    if env_file.exists():
+        try:
+            with open(env_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        key = key.strip()
+                        value = value.strip().strip('"').strip("'")
+                        os.environ[key] = value
+        except Exception as e:
+            print(f"[WARNING] Could not load .env file: {e}")
+
+# Load environment variables at startup
+load_env_file()
+
+class EngCrawl:
+    def __init__(self):
+        self.base_dir = Path.cwd() / "engineering_projects"
+        self.base_dir.mkdir(exist_ok=True)
+        self.state_file = self.base_dir / ".engcrawl_state.json"
+    
+    def init_project(self, project_name: str) -> None:
+        """Initialize a new project with default configuration."""
+        project_path = self.base_dir / project_name
+        project_path.mkdir(exist_ok=True)
+        
+        # Create project config
+        project_config = {
+            'name': project_name,
+            'created': datetime.now().isoformat(),
+            'description': f'Engineering project: {project_name}',
+            'default_settings': {
+                'output_format': 'markdown',
+                'verbose': True,
+                'headless': True,
+                'delay_before_return_html': 8,
+                'wait_for_images': True,
+                'simulate_user': True,
+                'override_navigator': True,
+                'page_timeout': 30000,
+                'deep_crawl': False,
+                'max_depth': 2,
+                'max_pages': 40
+            }
+        }
+        
+        config_path = project_path / ".project.yml"
+        with open(config_path, 'w') as f:
+            yaml.dump(project_config, f, default_flow_style=False)
+        
+        print(f"[SUCCESS] Initialized project: {project_name}")
+        print(f"  Location: {project_path}")
+    
+    def crawl(self, project_name: str, category: str, url: str, **kwargs) -> None:
+        """Crawl a URL into a specific project category."""
+        project_path = self.base_dir / project_name
+        if not project_path.exists():
+            print(f"[ERROR] Project '{project_name}' not found. Run 'engcrawl init {project_name}' first.")
+            return
+        
+        # Create category directory structure
+        category_path = project_path / category
+        category_path.mkdir(exist_ok=True)
+        
+        # Individual pages go in pages/ subfolder
+        pages_path = category_path / "pages"
+        pages_path.mkdir(exist_ok=True)
+        
+        # Load project config
+        project_config_path = project_path / ".project.yml"
+        project_config = {}
+        if project_config_path.exists():
+            with open(project_config_path, 'r') as f:
+                project_config = yaml.safe_load(f)
+        
+        # Load category config
+        category_config_path = category_path / ".category.yml"
+        category_config = {}
+        if category_config_path.exists():
+            with open(category_config_path, 'r') as f:
+                category_config = yaml.safe_load(f)
+        
+        # Merge configurations (category overrides project defaults)
+        settings = project_config.get('default_settings', {})
+        settings.update(category_config.get('settings', {}))
+        settings.update(kwargs)  # CLI args override everything
+        
+        
+        # Build crawl4ai command
+        output_file = pages_path / f"{self._safe_filename(url)}.md"
+        
+        cmd = ['crwl', 'crawl', url]
+        
+        # Add settings to command
+        if settings.get('output_format'):
+            cmd.extend(['-o', settings['output_format']])
+        if settings.get('verbose'):
+            cmd.append('-v')
+        
+        # Build browser parameters
+        browser_params = []
+        if settings.get('headless', True):
+            browser_params.append('headless=true')
+        else:
+            browser_params.append('headless=false')
+        if settings.get('viewport_width'):
+            browser_params.append(f'viewport_width={settings["viewport_width"]}')
+        
+        if browser_params:
+            cmd.extend(['--browser', ','.join(browser_params)])
+        
+        # Build crawler parameters  
+        crawler_params = []
+        if settings.get('css_selector'):
+            crawler_params.append(f'css_selector={settings["css_selector"]}')
+        if settings.get('delay_before_return_html'):
+            crawler_params.append(f'delay_before_return_html={settings["delay_before_return_html"]}')
+        if settings.get('exclude_external_links'):
+            crawler_params.append('exclude_external_links=true')
+        if settings.get('wait_for_images'):
+            crawler_params.append('wait_for_images=true')
+        if settings.get('simulate_user'):
+            crawler_params.append('simulate_user=true')
+        if settings.get('override_navigator'):
+            crawler_params.append('override_navigator=true')
+        if settings.get('page_timeout'):
+            crawler_params.append(f'page_timeout={settings["page_timeout"]}')
+        
+        if crawler_params:
+            cmd.extend(['--crawler', ','.join(crawler_params)])
+        
+        print(f"[CRAWLING] {url} into {project_name}/{category}")
+        print(f"   Command: {' '.join(cmd)}")
+        
+        # Execute crawl4ai command
+        try:
+            # Set environment to force UTF-8
+            env = os.environ.copy()
+            env['PYTHONIOENCODING'] = 'utf-8'
+            
+            # Change to category directory for execution
+            original_cwd = os.getcwd()
+            os.chdir(str(category_path))
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace', env=env)
+            
+            # Change back to original directory
+            os.chdir(original_cwd)
+            
+            # Write the output to file
+            if result.returncode == 0 and result.stdout:
+                with open(output_file, 'w', encoding='utf-8', errors='replace') as f:
+                    f.write(result.stdout)
+                print(f"[SUCCESS] Successfully crawled to: {output_file}")
+            else:
+                print(f"[ERROR] Crawl failed: {result.stderr}")
+            
+            # Log the crawl
+            log_file = category_path / "crawl.log"
+            with open(log_file, 'a', encoding='utf-8', errors='replace') as f:
+                f.write(f"\n[{datetime.now().isoformat()}] {url}\n")
+                f.write(f"Command: {' '.join(cmd)}\n")
+                f.write(f"Status: {'SUCCESS' if result.returncode == 0 else 'FAILED'}\n")
+                f.write(f"Output length: {len(result.stdout) if result.stdout else 0} characters\n")
+                if result.stderr:
+                    f.write(f"Error: {result.stderr}\n")
+                f.write("---\n")
+                
+        except Exception as e:
+            print(f"[ERROR] Error running crawl: {e}")
+    
+    def deep_crawl(self, project_name: str, category: str, url: str, **kwargs) -> None:
+        """Deep crawl a URL using crawl4ai Python API."""
+        project_path = self.base_dir / project_name
+        if not project_path.exists():
+            print(f"[ERROR] Project '{project_name}' not found.")
+            return
+        
+        # Create category directory structure
+        category_path = project_path / category
+        category_path.mkdir(exist_ok=True)
+        
+        # Individual pages go in pages/ subfolder
+        pages_path = category_path / "pages"
+        pages_path.mkdir(exist_ok=True)
+        
+        print("[INFO] Deep crawling using Python API...")
+        
+        # Create a Python script for deep crawling
+        script_content = f'''
+import asyncio
+import os
+from pathlib import Path
+from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+from crawl4ai.deep_crawling import BestFirstCrawlingStrategy
+from crawl4ai.deep_crawling.filters import FilterChain, DomainFilter
+from urllib.parse import urlparse
+
+async def deep_crawl():
+    # Parse domain from URL
+    parsed_url = urlparse("{url}")
+    domain = parsed_url.netloc
+    
+    # Create filter to stay within domain
+    filter_chain = FilterChain([
+        DomainFilter(allowed_domains=[domain])
+    ])
+    
+    # Configure deep crawling
+    config = CrawlerRunConfig(
+        deep_crawl_strategy=BestFirstCrawlingStrategy(
+            max_depth=2,
+            include_external=False,
+            filter_chain=filter_chain,
+            max_pages=40
+        ),
+        stream=True,
+        verbose=True
+    )
+    
+    # Execute crawl
+    async with AsyncWebCrawler() as crawler:
+        page_count = 0
+        async for result in await crawler.arun("{url}", config=config):
+            if result.success:
+                page_count += 1
+                # Create safe filename
+                safe_name = result.url.replace("://", "_").replace("/", "_").replace("?", "_")[:100]
+                output_file = Path("{str(pages_path).replace(chr(92), '/')}") / f"page_{{page_count:02d}}_{{safe_name}}.md"
+                
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    f.write(f"# {{result.url}}\\n\\n")
+                    f.write(result.markdown)
+                
+                print(f"[SUCCESS] Page {{page_count}}: {{result.url}}")
+                print(f"  Saved to: {{output_file}}")
+            else:
+                print(f"[FAILED] {{result.url}}: {{result.error_message}}")
+
+if __name__ == "__main__":
+    asyncio.run(deep_crawl())
+'''
+        
+        script_path = category_path / "temp_deep_crawl.py"
+        with open(script_path, 'w', encoding='utf-8') as f:
+            f.write(script_content)
+        
+        # Run the script using uv
+        try:
+            import subprocess
+            env = os.environ.copy()
+            env['PYTHONIOENCODING'] = 'utf-8'
+            
+            # Add UV environment variables to suppress warnings
+            env['UV_NO_SYNC'] = '1'
+            
+            result = subprocess.run(
+                ['uv', 'run', '--quiet', 'python', str(script_path)], 
+                capture_output=True, 
+                text=True, 
+                encoding='utf-8', 
+                errors='replace',
+                env=env
+            )
+            
+            if result.returncode == 0:
+                print(f"[SUCCESS] Deep crawl completed!")
+            else:
+                print(f"[ERROR] Deep crawl failed: {result.stderr}")
+            
+            # Clean up script
+            script_path.unlink()
+            
+        except Exception as e:
+            print(f"[ERROR] Error running deep crawl: {e}")
+    
+    def combine_files(self, project_name: str, category: str, cleanup: bool = False) -> None:
+        """Combine all markdown files in a category into one file."""
+        project_path = self.base_dir / project_name
+        if not project_path.exists():
+            print(f"[ERROR] Project '{project_name}' not found.")
+            return
+        
+        category_path = project_path / category
+        if not category_path.exists():
+            print(f"[ERROR] Category '{category}' not found.")
+            return
+        
+        pages_path = category_path / "pages"
+        if not pages_path.exists():
+            print(f"[ERROR] No pages found in '{project_name}/{category}'.")
+            return
+        
+        # Find all markdown files
+        md_files = list(pages_path.glob("*.md"))
+        if not md_files:
+            print(f"[ERROR] No markdown files found in '{project_name}/{category}'.")
+            return
+        
+        print(f"[COMBINING] Found {len(md_files)} files to combine...")
+        
+        # Sort files by creation time for consistent order
+        md_files.sort(key=lambda f: f.stat().st_mtime)
+        
+        # First pass: collect section info for table of contents
+        sections = []
+        for i, md_file in enumerate(md_files, 1):
+            try:
+                with open(md_file, 'r', encoding='utf-8', errors='replace') as f:
+                    content = f.read().strip()
+                
+                if content:
+                    filename = md_file.stem
+                    # Extract first line as title if it starts with #
+                    first_line = content.split('\n')[0].strip()
+                    if first_line.startswith('#'):
+                        title = first_line.lstrip('#').strip()
+                    else:
+                        title = filename.replace('_', ' ').title()
+                    
+                    sections.append({
+                        'number': i,
+                        'filename': filename,
+                        'title': title,
+                        'file_path': md_file,
+                        'content': content
+                    })
+                    
+            except Exception as e:
+                print(f"  ✗ Failed to read {md_file.name}: {e}")
+        
+        # Build combined content with table of contents
+        combined_content = []
+        combined_content.append(f"# {project_name} - {category}")
+        combined_content.append(f"\nCombined documentation from {len(sections)} sources")
+        combined_content.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        combined_content.append("\n" + "="*80 + "\n")
+        
+        # Add Table of Contents
+        combined_content.append("## 📋 Table of Contents\n")
+        for section in sections:
+            # Create anchor link (GitHub-style)
+            anchor = f"#{section['number']}-{section['filename'].lower().replace('_', '-')}"
+            combined_content.append(f"{section['number']}. [{section['title']}]({anchor})")
+        
+        combined_content.append("\n" + "="*80 + "\n")
+        
+        # Add content sections
+        for section in sections:
+            # Add section header with anchor
+            combined_content.append(f"\n## {section['number']}. {section['title']}")
+            combined_content.append(f"\n*Source: {section['file_path'].name}*")
+            combined_content.append("\n[↑ Back to Table of Contents](#-table-of-contents)\n")
+            combined_content.append(section['content'])
+            combined_content.append("\n" + "-"*80 + "\n")
+            
+            print(f"  ✓ Added: {section['file_path'].name}")
+        
+        # Write combined file
+        combined_file = category_path / f"{category}_combined.md"
+        combined_text = "\n".join(combined_content)
+        
+        try:
+            with open(combined_file, 'w', encoding='utf-8') as f:
+                f.write(combined_text)
+            
+            print(f"[SUCCESS] Combined file created: {combined_file}")
+            print(f"  Total content: {len(combined_text)} characters")
+            
+            # Optional Gemini cleanup
+            if cleanup:
+                self.cleanup_with_gemini(combined_file)
+                
+        except Exception as e:
+            print(f"[ERROR] Failed to write combined file: {e}")
+    
+    def cleanup_with_gemini(self, file_path: Path) -> None:
+        """Clean up markdown structure using Gemini Flash while preserving technical content."""
+        try:
+            import google.generativeai as genai
+            import os
+            
+            # Check for API key
+            api_key = os.getenv('GEMINI_API_KEY')
+            if not api_key:
+                print("[ERROR] GEMINI_API_KEY not found.")
+                print("Options:")
+                print("  1. Add to .env file: GEMINI_API_KEY=your_api_key_here")
+                print("  2. Set environment variable: set GEMINI_API_KEY=your_api_key_here")
+                print("  3. Get API key from: https://aistudio.google.com/app/apikey")
+                return
+            
+            print("[AI CLEANUP] Using Gemini 2.5 Flash Lite to improve document structure...")
+            
+            # Configure Gemini
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('gemini-2.5-flash-lite-preview-06-17')
+            
+            # Read the file
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Cleanup prompt
+            prompt = """
+Please clean up this technical documentation while preserving ALL technical information, specifications, and context. Focus on:
+
+1. Fix markdown formatting issues (headers, lists, links)
+2. Improve section organization and hierarchy
+3. Remove duplicate content or redundant sections
+4. Fix broken tables or formatting
+5. Ensure consistent heading levels
+6. Keep ALL technical details, numbers, specifications, and code examples intact
+
+Do not summarize or remove any technical content. Only improve the structure and formatting.
+
+Document to clean up:
+
+""" + content
+            
+            # Get response
+            response = model.generate_content(prompt)
+            cleaned_content = response.text
+            
+            # Save cleaned version
+            cleaned_file = file_path.parent / f"{file_path.stem}_cleaned.md"
+            with open(cleaned_file, 'w', encoding='utf-8') as f:
+                f.write(cleaned_content)
+            
+            print(f"[SUCCESS] AI-cleaned version saved: {cleaned_file}")
+            print(f"  Original: {len(content)} characters")
+            print(f"  Cleaned:  {len(cleaned_content)} characters")
+            
+        except ImportError:
+            print("[ERROR] Google AI SDK not installed. Install with: uv add google-generativeai")
+        except Exception as e:
+            print(f"[ERROR] Gemini cleanup failed: {e}")
+    
+    def list_projects(self) -> None:
+        """List all projects."""
+        projects = [p for p in self.base_dir.iterdir() if p.is_dir()]
+        
+        if not projects:
+            print("No projects found. Use 'engcrawl init <project_name>' to create one.")
+            return
+        
+        print("Projects:")
+        for project in sorted(projects):
+            config_path = project / ".project.yml"
+            if config_path.exists():
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                    desc = config.get('description', '')
+                    print(f"  {project.name} - {desc}")
+            else:
+                print(f"  {project.name}")
+    
+    def list_categories(self, project_name: str) -> None:
+        """List categories in a project."""
+        project_path = self.base_dir / project_name
+        if not project_path.exists():
+            print(f"[ERROR] Project '{project_name}' not found.")
+            return
+        
+        categories = [c for c in project_path.iterdir() if c.is_dir() and not c.name.startswith('.')]
+        
+        if not categories:
+            print(f"No categories found in project '{project_name}'.")
+            return
+        
+        print(f"Categories in {project_name}:")
+        for category in sorted(categories):
+            pages_path = category / "pages"
+            combined_file = category / f"{category.name}_combined.md"
+            
+            page_count = 0
+            if pages_path.exists():
+                page_count = len(list(pages_path.glob("*.md")))
+            
+            status_parts = []
+            if page_count > 0:
+                status_parts.append(f"{page_count} pages")
+            if combined_file.exists():
+                status_parts.append("combined")
+            
+            status = f"({', '.join(status_parts)})" if status_parts else "(empty)"
+            print(f"  {category.name} {status}")
+    
+    def configure_category(self, project_name: str, category: str, **settings) -> None:
+        """Configure settings for a category."""
+        project_path = self.base_dir / project_name
+        if not project_path.exists():
+            print(f"[ERROR] Project '{project_name}' not found.")
+            return
+        
+        category_path = project_path / category
+        category_path.mkdir(exist_ok=True)
+        
+        # Load existing config
+        config_path = category_path / ".category.yml"
+        config = {'settings': {}}
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+        
+        # Update settings
+        config['settings'].update({k: v for k, v in settings.items() if v is not None})
+        
+        # Save config
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False)
+        
+        print(f"[SUCCESS] Updated configuration for {project_name}/{category}")
+    
+    def _safe_filename(self, url: str) -> str:
+        """Convert URL to safe filename."""
+        import re
+        safe = re.sub(r'[^\w\-_.]', '_', url)
+        return safe[:100]  # Truncate to avoid long filenames
+    
+    def _load_state(self) -> Dict:
+        """Load the last-used project/category state."""
+        if self.state_file.exists():
+            try:
+                with open(self.state_file, 'r') as f:
+                    return json.load(f)
+            except:
+                pass
+        return {}
+    
+    def _save_state(self, project_name: str, category: str, url: str = None) -> None:
+        """Save the current project/category/url as last-used."""
+        state = {
+            'last_project': project_name,
+            'last_category': category,
+            'last_used': datetime.now().isoformat()
+        }
+        if url:
+            state['last_url'] = url
+        with open(self.state_file, 'w') as f:
+            json.dump(state, f, indent=2)
+    
+    def _get_available_projects(self) -> List[str]:
+        """Get list of available project names."""
+        projects = []
+        for p in self.base_dir.iterdir():
+            if p.is_dir() and not p.name.startswith('.'):
+                projects.append(p.name)
+        return sorted(projects)
+    
+    def _get_available_categories(self, project_name: str) -> List[str]:
+        """Get list of available categories for a project."""
+        project_path = self.base_dir / project_name
+        if not project_path.exists():
+            return []
+        
+        categories = []
+        for c in project_path.iterdir():
+            if c.is_dir() and not c.name.startswith('.'):
+                categories.append(c.name)
+        return sorted(categories)
+    
+    def interactive_crawl(self) -> None:
+        """Interactive crawl with prompts and smart defaults."""
+        state = self._load_state()
+        
+        # Get available projects
+        available_projects = self._get_available_projects()
+        
+        # Project prompt
+        last_project = state.get('last_project', '')
+        if last_project and last_project in available_projects:
+            project_prompt = f"Project Name? [{last_project}]: "
+        else:
+            project_prompt = "Project Name?: "
+        
+        project_name = input(project_prompt).strip()
+        if not project_name:
+            if last_project and last_project in available_projects:
+                project_name = last_project
+            else:
+                print("[ERROR] Project name is required.")
+                return
+        
+        # Check if project exists, if not offer to create it
+        if project_name not in available_projects:
+            create = input(f"Project '{project_name}' doesn't exist. Create it? [y/N]: ").strip().lower()
+            if create in ['y', 'yes']:
+                self.init_project(project_name)
+            else:
+                print("[CANCELLED] Crawl cancelled.")
+                return
+        
+        # Category prompt
+        available_categories = self._get_available_categories(project_name)
+        last_category = state.get('last_category', 'Docs')
+        
+        if last_category in available_categories:
+            category_prompt = f"Category? [{last_category}]: "
+        else:
+            category_prompt = f"Category? [Docs]: "
+        
+        category = input(category_prompt).strip()
+        if not category:
+            category = last_category if last_category in available_categories else 'Docs'
+        
+        # URL prompt
+        last_url = state.get('last_url', '')
+        if last_url:
+            url_prompt = f"URL? [{last_url}]: "
+        else:
+            url_prompt = "URL?: "
+        
+        url = input(url_prompt).strip()
+        if not url:
+            if last_url:
+                url = last_url
+            else:
+                print("[ERROR] URL is required.")
+                return
+        
+        # Deep crawl prompt
+        deep_crawl = input("Deep crawl (follow links)? [y/N]: ").strip().lower()
+        use_deep_crawl = deep_crawl in ['y', 'yes']
+        
+        # Perform the crawl
+        if use_deep_crawl:
+            print(f"\n[DEEP CRAWLING] {url} into {project_name}/{category} (max 40 pages, depth 2)")
+            self.deep_crawl(project_name, category, url)
+        else:
+            print(f"\n[CRAWLING] {url} into {project_name}/{category}")
+            self.crawl(project_name, category, url)
+        
+        # Combine files prompt (after crawling)
+        combine = input("\nCombine all files into one document? [y/N]: ").strip().lower()
+        if combine in ['y', 'yes']:
+            cleanup = input("Use AI cleanup (requires GEMINI_API_KEY)? [y/N]: ").strip().lower()
+            use_cleanup = cleanup in ['y', 'yes']
+            self.combine_files(project_name, category, cleanup=use_cleanup)
+        
+        # Save state for next time
+        self._save_state(project_name, category, url)
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Engineering Crawler - Project Management for crawl4ai')
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+    
+    # Interactive command (default)
+    interactive_parser = subparsers.add_parser('interactive', help='Interactive crawl mode (default)')
+    
+    # Init command
+    init_parser = subparsers.add_parser('init', help='Initialize a new project')
+    init_parser.add_argument('project_name', help='Name of the project to create')
+    
+    # Crawl command
+    crawl_parser = subparsers.add_parser('crawl', help='Crawl a URL into a project category')
+    crawl_parser.add_argument('project_name', help='Project name')
+    crawl_parser.add_argument('category', help='Category name')
+    crawl_parser.add_argument('url', help='URL to crawl')
+    crawl_parser.add_argument('--format', help='Output format (markdown, json, etc.)')
+    crawl_parser.add_argument('--exclude-external-links', action='store_true', help='Exclude external links')
+    crawl_parser.add_argument('--verbose', '-v', action='store_true', help='Verbose output')
+    crawl_parser.add_argument('--css-selector', help='CSS selector for content extraction')
+    crawl_parser.add_argument('--delay', type=int, help='Delay before returning HTML (seconds)')
+    
+    # List command
+    list_parser = subparsers.add_parser('list', help='List projects or categories')
+    list_parser.add_argument('project_name', nargs='?', help='Project name (optional)')
+    
+    # Config command
+    config_parser = subparsers.add_parser('config', help='Configure category settings')
+    config_parser.add_argument('project_name', help='Project name')
+    config_parser.add_argument('category', help='Category name')
+    config_parser.add_argument('--format', help='Output format')
+    config_parser.add_argument('--exclude-external-links', action='store_true', help='Exclude external links')
+    config_parser.add_argument('--css-selector', help='CSS selector for content extraction')
+    config_parser.add_argument('--delay', type=int, help='Delay before returning HTML (seconds)')
+    
+    # Combine command
+    combine_parser = subparsers.add_parser('combine', help='Combine all files in a category into one document')
+    combine_parser.add_argument('project_name', help='Project name')
+    combine_parser.add_argument('category', help='Category name')
+    combine_parser.add_argument('--cleanup', action='store_true', help='Use AI cleanup (requires GEMINI_API_KEY)')
+    
+    args = parser.parse_args()
+    
+    crawler = EngCrawl()
+    
+    # Default to interactive mode if no command specified
+    if not args.command:
+        crawler.interactive_crawl()
+        return
+    
+    if args.command == 'interactive':
+        crawler.interactive_crawl()
+    
+    elif args.command == 'init':
+        crawler.init_project(args.project_name)
+    
+    elif args.command == 'crawl':
+        kwargs = {}
+        if args.format:
+            kwargs['output_format'] = args.format
+        if args.exclude_external_links:
+            kwargs['exclude_external_links'] = True
+        if args.verbose:
+            kwargs['verbose'] = True
+        if args.css_selector:
+            kwargs['css_selector'] = args.css_selector
+        if args.delay:
+            kwargs['delay_before_return_html'] = args.delay
+        
+        crawler.crawl(args.project_name, args.category, args.url, **kwargs)
+    
+    elif args.command == 'list':
+        if args.project_name:
+            crawler.list_categories(args.project_name)
+        else:
+            crawler.list_projects()
+    
+    elif args.command == 'config':
+        kwargs = {}
+        if args.format:
+            kwargs['output_format'] = args.format
+        if args.exclude_external_links:
+            kwargs['exclude_external_links'] = True
+        if args.css_selector:
+            kwargs['css_selector'] = args.css_selector
+        if args.delay:
+            kwargs['delay_before_return_html'] = args.delay
+        
+        crawler.configure_category(args.project_name, args.category, **kwargs)
+    
+    elif args.command == 'combine':
+        crawler.combine_files(args.project_name, args.category, cleanup=args.cleanup)
+
+
+if __name__ == '__main__':
+    main()

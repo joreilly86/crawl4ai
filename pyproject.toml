@@ -44,6 +44,9 @@ dependencies = [
     "aiohttp>=3.11.11",
     "brotli>=1.1.0",
     "humanize>=4.10.0",
+    "crawl4ai",
+    "pyyaml>=6.0.2",
+    "google-generativeai>=0.8.5",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

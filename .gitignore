@@ -265,3 +265,22 @@ tests/**/benchmark_reports
 
 docs/**/data
 .codecat/
+
+# Engineering Crawler - Personal Data Protection
+engineering_projects/
+.engcrawl_state.json
+*.env
+.env.*
+!.env.example
+
+# Personal API keys and sensitive data
+*.key
+*.keys
+api_keys/
+secrets/
+private/
+
+# Temporary crawler files
+temp_deep_crawl.py
+*_combined_cleaned.md
+crawl.log

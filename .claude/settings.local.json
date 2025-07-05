@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod:*)",
+      "Bash(python3 engcrawl init:*)",
+      "Bash(python3 engcrawl:*)",
+      "Bash(uv run crwl crawl:*)",
+      "Bash(ls:*)",
+      "Bash(python:*)",
+      "Bash(rm:*)"
+    ],
+    "deny": []
+  }
+}
