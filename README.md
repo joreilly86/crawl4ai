@@ -35,12 +35,12 @@ PS> .\run_engcrawl.bat
 
 ### 3. Interactive Session
 ```
-Project Name? [salt_river_project]: 
+Project Name? [your_project]: 
 Category? [specs]: 
 URL? [https://example.com/docs]: 
 Deep crawl (follow links)? [y/N]: y
 
-[DEEP CRAWLING] https://example.com/docs into salt_river_project/specs (max 10 pages, depth 2)
+[DEEP CRAWLING] https://example.com/docs into your_project/specs (max 10 pages, depth 2)
 [SUCCESS] Page 1: https://example.com/docs
 [SUCCESS] Page 2: https://example.com/docs/installation
 [SUCCESS] Page 3: https://example.com/docs/api
@@ -61,7 +61,7 @@ Use AI cleanup (requires GEMINI_API_KEY)? [y/N]: y
 
 ```
 engineering_projects/
-├── salt_river_pumped_storage_project/
+├── your_project/
 │   ├── specs/
 │   │   ├── pages/                    # Individual page files
 │   │   │   ├── page_01_overview.md
@@ -139,15 +139,26 @@ PS> uv run python engcrawl combine my_project specs --cleanup
 # Interactive mode prompts you automatically
 ```
 
-**Cost**: ~$0.0001-0.001 per document (Gemini Flash Lite is extremely affordable)
+### Check the latets Gemini Cost [here](https://ai.google.dev/gemini-api/docs/pricing): 
+
+Cost calculation is based on the following formula and pricing:
+- **Input Price:** $0.10 per 1 million tokens
+- **Output Price:** $0.40 per 1 million tokens
+- **Formula:** `Total Cost = (Input_Tokens / 1,000,000 * $0.10) + (Output_Tokens / 1,000,000 * $0.40)`
+
+| Scenario | Document Size | Est. Input Tokens | Est. Output Tokens (for Summarization) | Estimated Total Cost |
+| :--- | :--- | :--- | :--- | :--- |
+| **A: Single Technical Paper** | A 15-page paper (~6,000 words) | ~8,000 | ~800 | **~$0.0011** |
+| **B: Medium Documentation (pyRevit)** | 50 pages (~50,000 words) | ~66,500 | ~6,650 | **~$0.0093** |
+| **C: Large Design Manual** | A 300-page manual (~450,000 words) | ~600,000 | ~60,000 | **~$0.0840** |
 
 ## Configuration Files
 
 ### Project Configuration (`.project.yml`)
 ```yaml
-name: salt_river_pumped_storage_project
+name: your_project
 created: '2025-07-05T10:30:00'
-description: 'Engineering project: salt_river_pumped_storage_project'
+description: 'Engineering project: your_project'
 default_settings:
   output_format: markdown
   verbose: true
@@ -227,7 +238,7 @@ Run with: `Ctrl+Shift+P` → "Tasks: Run Task" → "Run Engineering Crawler"
 ## Best Practices
 
 ### Project Organization
-- **Use descriptive project names**: `salt_river_pumped_storage_project` vs `project1`
+- **Use descriptive project names**: `your_project` vs `project1`
 - **Logical categories**: `specs`, `design_references`, `revit_docs`, `api_docs`
 - **Consistent naming**: Use underscores, avoid spaces
 
