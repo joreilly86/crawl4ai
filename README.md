@@ -86,7 +86,7 @@ engineering_projects/
 - **How**: Answer "N" to "Deep crawl (follow links)?"
 
 ### Deep Crawling  
-- **What**: Follows links to crawl up to 40 related pages, 2 levels deep
+- **What**: Follows links to crawl up to 50 related pages, 2 levels deep
 - **When**: Use for documentation sites, tutorials, comprehensive content
 - **How**: Answer "y" to "Deep crawl (follow links)?"
 - **Output**: Multiple files in `pages/` folder named `page_01_xxx.md`, `page_02_xxx.md`, etc.
@@ -143,14 +143,14 @@ PS> uv run python engcrawl combine my_project specs --cleanup
 
 Cost calculation is based on the following formula and pricing:
 - **Input Price:** $0.10 per 1 million tokens
-- **Output Price:** $0.40 per 1 million tokens
-- **Formula:** `Total Cost = (Input_Tokens / 1,000,000 * $0.10) + (Output_Tokens / 1,000,000 * $0.40)`
+- **Output Price:** $0.50 per 1 million tokens
+- **Formula:** `Total Cost = (Input_Tokens / 1,000,000 * $0.10) + (Output_Tokens / 1,000,000 * $0.50)`
 
 | Scenario | Document Size | Est. Input Tokens | Est. Output Tokens (for Summarization) | Estimated Total Cost |
 | :--- | :--- | :--- | :--- | :--- |
 | **A: Single Technical Paper** | A 15-page paper (~6,000 words) | ~8,000 | ~800 | **~$0.0011** |
 | **B: Medium Documentation (pyRevit)** | 50 pages (~50,000 words) | ~66,500 | ~6,650 | **~$0.0093** |
-| **C: Large Design Manual** | A 300-page manual (~450,000 words) | ~600,000 | ~60,000 | **~$0.0840** |
+| **C: Large Design Manual** | A 300-page manual (~450,000 words) | ~600,000 | ~60,000 | **~$0.0850** |
 
 ## Configuration Files
 
@@ -169,7 +169,7 @@ default_settings:
   override_navigator: true
   page_timeout: 30000
   max_depth: 2
-  max_pages: 40
+  max_pages: 50
 ```
 
 ### Category Configuration (`.category.yml`)
@@ -271,7 +271,7 @@ Run with: `Ctrl+Shift+P` → "Tasks: Run Task" → "Run Engineering Crawler"
 - They don't affect functionality
 
 ### Slow Performance
-- Reduce `max_pages` from 40 to smaller number for faster deep crawling
+- Reduce `max_pages` from 50 to smaller number for faster deep crawling
 - Increase `delay_before_return_html` for better success rate
 - Use single-page crawling for individual documents
 - AI cleanup adds minimal time (~1-2 seconds per document)

@@ -61,7 +61,7 @@ class EngCrawl:
                 'page_timeout': 30000,
                 'deep_crawl': False,
                 'max_depth': 2,
-                'max_pages': 40
+                'max_pages': 50
             }
         }
         
