@@ -316,4 +316,6 @@ This project is a specialized fork of [crawl4ai](https://github.com/unclecode/cr
 **License:** Same as original crawl4ai project  
 **Engineering Enhancements:** Project organization, interactive CLI, AI cleanup, Windows optimization
 
-**Created for engineering documentation and knowledge management workflows.**
+## Further Learning
+For an in-depth exploration, visit my [Flocode Substack newsletter](https://flocode.substack.com/). 📘
+Check out [flocode.dev](https://flocode.dev) for more coding resources for engineers 🌊. 💡
